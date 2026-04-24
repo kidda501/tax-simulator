@@ -99,4 +99,4 @@ for r in results:
         f"Net £{r['Net']:,.0f}"
     )
 
-st.success("Model complete — RSUs now simulate real stock-linked vesting + volatility.")
+st.success("Model complete  v1.0 — RSUs now simulate real stock-linked vesting + volatility.")
