@@ -1,3 +1,4 @@
-Installing streamlit
-Installing yfinance
-Installing numpy
+streamlit
+numpy
+pandas
+yfinance==0.2.40
