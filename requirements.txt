@@ -1,0 +1,3 @@
+Installing streamlit
+Installing yfinance
+Installing numpy
