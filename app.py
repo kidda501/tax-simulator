@@ -10,7 +10,7 @@ st.title("ARM RSU + UK Tax Simulator (USD → GBP Real Model)")
 # -----------------------
 # LIVE DATA
 # -----------------------
-ticker = "ARM"
+ticker = "ADR"
 fx_pair = "GBP=X"   # USD → GBP
 
 @st.cache_data(ttl=60)
