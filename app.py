@@ -17,6 +17,9 @@ fx_pair = "GBP=X"   # USD → GBP
 def get_price(t):
     return yf.Ticker(t).history(period="1d")["Close"].iloc[-1]
 
+data = yf.download("AAPL", period="1d")
+print(data)
+
 try:
     arm_price_usd = get_price(ticker)
 except:
