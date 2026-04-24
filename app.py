@@ -1,25 +1,60 @@
 import streamlit as st
 import numpy as np
+import pandas as pd
+import yfinance as yf
 
-st.set_page_config(page_title="Comp & RSU Simulator", layout="wide")
+st.set_page_config(page_title="RSU FX Tax Model", layout="wide")
 
-st.title("UK Compensation + RSU Simulator (Advanced)")
+st.title("ARM RSU + UK Tax Simulator (USD → GBP Real Model)")
 
 # -----------------------
-# Inputs
+# LIVE DATA
 # -----------------------
+ticker = "ARM"
+fx_pair = "GBP=X"   # USD → GBP
+
+@st.cache_data(ttl=60)
+def get_price(t):
+    return yf.Ticker(t).history(period="1d")["Close"].iloc[-1]
+
+try:
+    arm_price_usd = get_price(ticker)
+except:
+    arm_price_usd = 100
+
+try:
+    fx = get_price(fx_pair)  # USD per GBP
+    usd_to_gbp = 1 / fx
+except:
+    usd_to_gbp = 0.79  # fallback
+
+st.metric("ARM Price (USD)", f"${arm_price_usd:.2f}")
+st.metric("USD → GBP FX Rate", f"£{usd_to_gbp:.4f}")
+
+# -----------------------
+# INPUTS
+# -----------------------
+total_shares = 1335
 salary = st.slider("Base Salary (£)", 20000, 250000, 60000, 1000)
 pension_pct = st.slider("Salary Sacrifice (%)", 0, 40, 10)
 
-ticker = st.text_input("RSU Stock Ticker (e.g. AAPL, MSFT)", "AAPL")
+# -----------------------
+# VESTING STRUCTURE
+# -----------------------
+vest_42 = 0.42
+vest_6 = 0.06
+vest_4 = 0.04
 
-rsu_grant = st.slider("Total RSU Grant (£ value at grant)", 0, 200000, 40000, 1000)
+shares_2026 = total_shares * vest_42
 
-vesting_years = st.slider("Vesting Period (years)", 1, 5, 4)
-volatility = st.slider("Annual Volatility (%)", 5, 80, 25)
+# USD value of RSUs at vest
+rsu_value_usd = shares_2026 * arm_price_usd
+
+# convert to GBP for UK tax
+rsu_value_gbp = rsu_value_usd * usd_to_gbp
 
 # -----------------------
-# UK Tax (simplified but structured)
+# TAX ENGINE (UK)
 # -----------------------
 def income_tax(income):
     if income <= 12570:
@@ -30,9 +65,9 @@ def income_tax(income):
         return (50270 - 12570) * 0.20 + (income - 50270) * 0.40
     else:
         return (
-            (50270 - 12570) * 0.20
-            + (125140 - 50270) * 0.40
-            + (income - 125140) * 0.45
+            (50270 - 12570) * 0.20 +
+            (125140 - 50270) * 0.40 +
+            (income - 125140) * 0.45
         )
 
 def ni(income):
@@ -44,59 +79,53 @@ def ni(income):
         return (50270 - 12570) * 0.08 + (income - 50270) * 0.02
 
 # -----------------------
-# RSU Simulation Engine
+# SALARY + RSU TAX MODEL
 # -----------------------
-years = np.arange(1, vesting_years + 1)
-base_price = 100  # normalized starting price
+pension = salary * pension_pct / 100
+taxable_salary = salary - pension
 
-results = []
+total_income = taxable_salary + rsu_value_gbp
 
-for y in years:
-    # simulate stock price path
-    shock = np.random.normal(0, volatility / 100)
-    price = base_price * np.exp(shock * y)
+tax = income_tax(total_income)
+nat_ins = ni(taxable_salary)
 
-    vest_value = rsu_grant / vesting_years * (price / base_price)
-
-    pension = salary * pension_pct / 100
-    taxable_salary = salary - pension
-
-    total_income = taxable_salary + vest_value
-
-    tax = income_tax(total_income)
-    nat_ins = ni(total_income)
-
-    net = salary + vest_value - pension - tax - nat_ins
-
-    results.append({
-        "Year": y,
-        "RSU Value": vest_value,
-        "Tax": tax,
-        "NI": nat_ins,
-        "Net": net
-    })
+net = salary + rsu_value_gbp - pension - tax - nat_ins
 
 # -----------------------
-# Display results
+# OUTPUT
 # -----------------------
-net_values = [r["Net"] for r in results]
-rsu_values = [r["RSU Value"] for r in results]
+st.subheader("2026 Vesting (42% tranche only)")
 
-st.subheader("Vesting Simulation")
+col1, col2, col3 = st.columns(3)
 
-st.line_chart({
-    "Net Income": net_values,
-    "RSU Income": rsu_values
+col1.metric("RSU Value (USD)", f"${rsu_value_usd:,.0f}")
+col2.metric("RSU Value (GBP)", f"£{rsu_value_gbp:,.0f}")
+col3.metric("Net Income (2026)", f"£{net:,.0f}")
+
+st.divider()
+
+st.subheader("Tax Breakdown (UK)")
+
+st.write(f"Taxable Income: £{total_income:,.0f}")
+st.write(f"Income Tax: £{tax:,.0f}")
+st.write(f"National Insurance: £{nat_ins:,.0f}")
+
+st.divider()
+
+st.subheader("Full Vesting Context (not taxed yet)")
+
+df = pd.DataFrame({
+    "Vesting Bucket": ["42% Aug 2026", "6% × 7 quarters", "4% × 4 quarters"],
+    "Shares": [
+        shares_2026,
+        total_shares * vest_6 * 7,
+        total_shares * vest_4 * 4
+    ]
 })
 
-st.subheader("Year-by-Year Breakdown")
+df["USD Value"] = df["Shares"] * arm_price_usd
+df["GBP Value"] = df["USD Value"] * usd_to_gbp
 
-for r in results:
-    st.write(
-        f"Year {r['Year']}: "
-        f"RSU £{r['RSU Value']:,.0f} | "
-        f"Tax £{r['Tax']:,.0f} | "
-        f"Net £{r['Net']:,.0f}"
-    )
+st.dataframe(df)
 
-st.success("Model complete  v1.0 — RSUs now simulate real stock-linked vesting + volatility.")
+st.caption("RSUs taxed at vesting: USD value converted to GBP using live FX rate.")
