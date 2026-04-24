@@ -128,4 +128,4 @@ df["GBP Value"] = df["USD Value"] * usd_to_gbp
 
 st.dataframe(df)
 
-st.caption("RSUs taxed at vesting: USD value converted to GBP using live FX rate.")
+st.caption("RSUs v1.0 taxed at vesting: USD value converted to GBP using live FX rate.")
