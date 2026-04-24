@@ -97,7 +97,7 @@ net = salary + rsu_value_gbp - pension - tax - nat_ins
 # -----------------------
 # OUTPUT
 # -----------------------
-st.subheader(f"{data} 2026 Vesting (42% tranche only)")
+st.subheader(f"{data}")
 
 col1, col2, col3 = st.columns(3)
 
